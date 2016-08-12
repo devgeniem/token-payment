@@ -1,0 +1,24 @@
+{
+  "name": "checkoutfi/token-payment",
+  "description": "Token payment API implementation",
+  "minimum-stability": "dev",
+  "type": "library",
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "Matti Särkikoski",
+      "email": "matti@checkout.fi"
+    }
+  ],
+  "require": {
+    "php": ">=5.4"
+  },
+  "require-dev": {
+    "phpspec/phpspec": "~2.0"
+  },
+  "autoload": {
+    "psr-4": {
+      "CheckoutFinland\\ChargeApi\\": "src"
+    }
+  }
+}
