@@ -162,6 +162,10 @@ class Client
                     'method' => 'POST',
                     'header' => 'Content-Type: application/x-www-form-urlencoded',
                     'content' => http_build_query($postData)
+                ),
+                "ssl" => array(
+                    "verify_peer"=>false,
+                    "verify_peer_name"=>false,
                 )
             ));
             return file_get_contents($url, false, $context);
