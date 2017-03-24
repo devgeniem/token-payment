@@ -160,7 +160,7 @@ class Client
             $context = stream_context_create(array(
                 'http' => array(
                     'method' => 'POST',
-                    'header' => 'Content-Type: application/x-www-form-urlencoded',
+                    'header' => 'Content-Type: application/x-www-form-urlencoded; charset=utf-8',
                     'content' => http_build_query($postData)
                 ),
                 "ssl" => array(
@@ -174,7 +174,7 @@ class Client
         {
             $options = array(
                 CURLOPT_POST            => 1,
-                CURLOPT_HEADER          => 0,
+                CURLOPT_HEADER          => 'Content-Type: application/x-www-form-urlencoded; charset=utf-8',
                 CURLOPT_URL             => $url,
                 CURLOPT_FRESH_CONNECT   => 1,
                 CURLOPT_RETURNTRANSFER  => 1,
