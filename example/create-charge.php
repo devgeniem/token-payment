@@ -1,4 +1,5 @@
 <?php
+date_default_timezone_set('Europe/Helsinki');
 
 require_once "../src/Client.php";
 
@@ -28,8 +29,11 @@ $params = [
     'phone'             => '123456789',
 ];
 
-$response = $token_client->debit(...array_values($params));
+echo '<req_params>';
+print_r($params);
+echo '</req_params>';
 
+$response = $token_client->debit(...array_values($params));
 
 // when using test account with test token the charge fails randomly (simulates cancelled card etc)
 var_dump($response);

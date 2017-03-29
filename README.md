@@ -59,32 +59,7 @@ After the user has regisgered their credit card they will be redirected back to 
 
 ## Creating a charge with previously registered token
 
-    use CheckoutFinland\TokenPayment\Client as TokenClient;
-    
-    $merchant_id    = '375917'; // demo merchant
-    $secret         = 'SAIPPUAKAUPPIAS'; 
-    $token          = '00000000-0000-0000-0000-000000000000'; // demo token
-    
-    $token_client = new TokenClient($merchant_id, $secret);
-    
-    $params = [
-    	'token'             => $token,
-    	'stamp'             => str_replace('.','', microtime(true)), // unique id for the payment
-    	'amount'            => 100,
-    	'reference'         => '12344',
-    	'message'           => 'Nuts and bolts',
-    	'return_url'        => 'https://...',
-    	'delivery_date'     => date('Ymd', strtotime('+2 weeks')),
-    	'first_name'        => 'John',
-    	'last_name'         => 'Smith',
-    	'street_address'    => 'Somestreet 123',
-    	'postcode'          => '33100',
-    	'post_office'       => 'Some city',
-    	'email'             => 'email@email',
-    	'phone'             => '123456789',
-	];
-
-	$response = $token_client->debit(...array_values($params));
+[create-charge.php](./example/create-charge.php)
 
 Response for a succesfull payment
     
