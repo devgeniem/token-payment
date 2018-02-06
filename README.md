@@ -2,8 +2,8 @@
 
 ## Installation
 
-    composer require checkoutfi/token-payment dev-master
-    
+    composer config repositories.devgeniem/token-payment git git@github.com:devgeniem/token-payment.git
+    composer require devgeniem/token-payment dev-master
 
 ## Registering a payment method/credit card
 
