@@ -1,5 +1,5 @@
 {
-  "name": "checkoutfi/token-payment",
+  "name": "devgeniem/token-payment",
   "description": "Token payment API implementation",
   "minimum-stability": "dev",
   "type": "library",
