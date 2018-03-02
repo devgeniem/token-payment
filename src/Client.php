@@ -65,7 +65,8 @@ class Client {
 
         $params['hmac'] = Util::calculate_hmac( $params, $this->secret );
 
-        return $this->post_data( $url, $params );
+        $response = $this->post_data( $url, $params );
+        return $response;
     }
 
     /**
@@ -133,11 +134,17 @@ class Client {
      * @return WP_Error|array The response or WP_Error on failure.
      */
     private function post_data( $url, $post_data ) {
+        $env = defined( 'WP_ENV' ) ? WP_ENV : 'development';
+
+        // Do not verify SSl on development environment.
+        $ssl_verify = $env === 'development' ? false : true;
+
         $response = \wp_remote_post( $url, array(
                 'method'      => 'POST',
                 'timeout'     => 45,
                 'blocking'    => true,
-                'body'        => $postData,
+                'body'        => $post_data,
+                'sslverify'   => $ssl_verify,
                 'headers'     => [
                     'Content-Type' => 'application/x-www-form-urlencoded',
                     'charset'      => 'utf-8',

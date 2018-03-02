@@ -138,7 +138,7 @@ class RegisterResponse {
         $this->code       = filter_input( INPUT_GET, 'co_code', FILTER_SANITIZE_STRING );
         $this->request_id = filter_input( INPUT_GET, 'co_request_id', FILTER_SANITIZE_STRING );
         $this->status     = filter_input( INPUT_GET, 'co_status', FILTER_SANITIZE_STRING );
-        $this->token      = filter_input( INPUT_GET, 'co_token', FILTER_SANITIZE_STRIN );
+        $this->token      = filter_input( INPUT_GET, 'co_token', FILTER_SANITIZE_STRING );
         $this->hmac       = filter_input( INPUT_GET, 'hmac', FILTER_SANITIZE_STRING );
     }
 
@@ -158,7 +158,7 @@ class RegisterResponse {
 
         $expected_mac = Util::calculate_hmac( $params, $this->secret );
 
-        $valid = $expected_mac === $mac;
+        $valid = $expected_mac === $this->hmac;
 
         return $valid;
     }
