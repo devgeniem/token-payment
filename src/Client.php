@@ -136,8 +136,8 @@ class Client {
     private function post_data( $url, $post_data ) {
         $env = defined( 'WP_ENV' ) ? WP_ENV : 'development';
 
-        // Do not verify SSl on development environment.
-        $ssl_verify = $env === 'development' ? false : true;
+        // Do not verify SSl for now.
+        $ssl_verify = false;
 
         $response = \wp_remote_post( $url, array(
                 'method'      => 'POST',

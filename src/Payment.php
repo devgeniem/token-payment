@@ -48,25 +48,26 @@ class Payment {
      *
      * @param $url target URL
      * @param $params query parameters
-     * @return string XML response from the server
+     * @return WP_Error|array The response object or WP_Error on failure.
      */
     private function createQuery($url, $params)
     {
-        $params['hmac'] = $this->calculateHmac($params);
 
-        $context = stream_context_create(array(
-            'http' => array(
-                'method' => 'POST',
-                'header' => 'Content-Type: application/x-www-form-urlencoded',
-                'content' => http_build_query($params)
-            ),
-            "ssl" => array(
-                "verify_peer" => false,
-                "verify_peer_name" => false
+        // Do not verify SSl for now.
+        $ssl_verify = false;
+
+        $response = \wp_remote_post( $url, array(
+                'method'      => 'POST',
+                'timeout'     => 45,
+                'blocking'    => true,
+                'body'        => $params,
+                'sslverify'   => $ssl_verify,
+                'headers'     => [
+                    'Content-Type' => 'application/x-www-form-urlencoded',
+                    'charset'      => 'utf-8',
+                ],
             )
-        ));
-
-        $response = file_get_contents($url, false, $context);
+        );
 
         return $response;
     }
@@ -74,13 +75,13 @@ class Payment {
     /**
      * Creates a payment or an authorization hold
      *
-     * @param $amount Amount in cents
-     * @param $stamp Unique stamp for the payment
-     * @param $reference Reference for the payment
-     * @param $description Description for the payment
-     * @param bool $commit Commit payment true = commit, false = create an authorization hold
+     * @param float  $amount Amount in cents
+     * @param string $stamp Unique stamp for the payment
+     * @param string $reference Reference for the payment
+     * @param string $description Description for the payment
+     * @param bool   $commit Commit payment true = commit, false = create an authorization hold
      *
-     * @return string XML response from the server
+     * @return WP_Error|array The response object or WP_Error on failure.
      */
     public function createPayment($amount, $stamp, $reference, $description, $commit = false)
     {
@@ -119,7 +120,7 @@ class Payment {
      * @param $amount Commit amount can be same or smaller than the authorization hold
      * @param $stamp Stamp of the payment to be committed
      *
-     * @return string XML response from the server
+     * @return WP_Error|array The response object or WP_Error on failure.
      */
     public function commitPayment($amount, $stamp)
     {
@@ -137,7 +138,7 @@ class Payment {
      *
      * @param $stamp Stamp of the payment to be cancelled
      *
-     * @return string XML response from the server
+     * @return WP_Error|array The response object or WP_Error on failure.
      */
     public function cancelPayment($stamp)
     {
@@ -154,7 +155,7 @@ class Payment {
      *
      * @param $stamp Stamp of the payment of which information is fetched
      *
-     * @return string XML response from the server
+     * @return WP_Error|array The response object or WP_Error on failure.
      */
     public function paymentStatus($stamp)
     {
@@ -169,7 +170,7 @@ class Payment {
     /**
      * Fetches information about tokenized credit card
      *
-     * @return string XML response from the server
+     * @return WP_Error|array The response object or WP_Error on failure.
      */
     public function cardInfo()
     {
