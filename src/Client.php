@@ -6,16 +6,31 @@ namespace CheckoutFinland\TokenPayment;
  * Class Client
  * @package CheckoutFinland\TokenPayment
  */
-class Client
-{
+class Client {
+
     /**
      * @var string Merchant id, 375917 = test account
      */
     private $merchant_id;
+
     /**
      * @var string Merchant secret, SAIPPUAKAUPPIAS = test account secret
      */
     private $secret;
+
+    /**
+     * The Token Payment API url.
+     *
+     * @var string
+     */
+    private static $service_url = 'https://payment.checkout.fi';
+
+    /**
+     * Base XML for a token payment.
+     *
+     * @var string
+     */
+    private static $base_payment_xml = '<?xml version="1.0"?><checkout xmlns="http://checkout.fi/request"><request></request></checkout>';
 
     /**
      * Client constructor
@@ -23,176 +38,121 @@ class Client
      * @param $merchant_id
      * @param $secret
      */
-    public function __construct($merchant_id, $secret)
-    {
+    public function __construct( $merchant_id, $secret ) {
         $this->merchant_id  = $merchant_id;
         $this->secret       = $secret;
     }
 
     /**
-     * Initiate a payment method registration, if succesfull returns xml that can used to construct an html form for the customer,
-     * the form redirects the customer to an offsite gateway where the credit card is registered and a token is returned in the GET
-     * parameters when the customer returns to the return_url
+     * Initiate a payment method registration. If it is succesful, the request returns the Payment Highway HTML.
      *
      * @param string $stamp Unique identifier for this transaction, cannot be reused, recommend to use microtime() etc
-     * @param string $return_url Return url
-     * @param string $language UI language of the registration page, supported languages: DE, EN, ES, FI, FR, RU, SV
-     * @return mixed|string
+     * @param string $return_url Redirection URL on succeeded, cancelled and failed action.
+     * @param string $request_id Unique identificator for the request.
+     * @return array|\WP_Error
      * @throws \Exception
      */
-    public function registerPaymentMethod($stamp, $return_url, $language = 'FI')
-    {
-        $url = "https://payment.checkout.fi/token/register";
+    public function registerPaymentMethod( $request_id, $return_url ) {
+        $url = self::$service_url . '/token/card/add';
 
         $params = [
-            'VERSION'   => '0001',
-            'MERCHANT'  => $this->merchant_id,
-            'STAMP'     => $stamp,
-            'ALGORITHM' => '3',
-            'LANGUAGE'  => $language,
-            'RETURN'    => $return_url
+            'merchant'    => $this->merchant_id,
+            'success_url' => $return_url,
+            'failure_url' => $return_url,
+            'cancel_url'  => $return_url,
+            'request_id'  => $request_id,
         ];
 
-        $params['MAC'] = strtoupper(hash_hmac('sha256', join('+', $params) , $this->secret));
+        $params['hmac'] = Util::calculate_hmac( $params, $this->secret );
 
-        return $this->postData($url, $params);
+        $response = $this->post_data( $url, $params );
+        return $response;
     }
 
     /**
-     * Validates the return parameters
+     * Creates a payment or an authorization hold
      *
-     * @param string $version 0001
-     * @param string $merchant Merchant id
-     * @param string $stamp Unique identifier
-     * @param integer $algorithm 3 = hmac sha256
-     * @param string $token Payment token, if empty registration failed
-     * @param string $key Payment method identifier
-     * @param string $service Service code, matches the service code in returned xml in registerPaymentMethod()
-     * @param string $mac hmac sha256 mac, if empty the registration failed
-     * @return bool
-     * @throws \Exception
+     * @param $amount Amount in cents
+     * @param $stamp Unique stamp for the payment
+     * @param $reference Reference for the payment
+     * @param $description Description for the payment
+     * @param bool $commit Commit payment true = commit, false = create an authorization hold
+     *
+     * @return string XML response from the server
      */
-    public function validateRegisterReturn($version, $merchant, $stamp, $algorithm, $token, $key, $service, $mac)
-    {
-        if($algorithm == 3)
-            $expected_mac = strtoupper(hash_hmac('sha256', "{$version}&{$merchant}&{$stamp}&{$algorithm}&{$token}&{$key}&{$service}", $this->secret));
-        else
-            throw new \Exception('Unsupported algorithm');
+    public function createPayment( $amount, $stamp, $reference, $description, $commit = false ) {
+        $xml = simplexml_load_string(self::base_payment_xml );
+        $xml->request->token = $this->token;
+        $xml->request->version = '0002';
+        $xml->request->stamp = $stamp;
+        $xml->request->reference = $reference;
+        $xml->request->device = 10;
+        $xml->request->content = 1;
+        $xml->request->type = 0;
+        $xml->request->algorithm = 3;
+        $xml->request->currency = 'EUR';
+        $xml->request->commit = $commit ? 'true' : 'false';
+        $xml->request->description = $description;
+        $xml->request->merchant = $this->merchantId;
+        $xml->request->amount = $amount;
+        $xml->request->delivery->date = '20170619';
+        $xml->request->buyer->country = 'FIN';
+        $xml->request->buyer->language = 'FI';
 
-        if($expected_mac == $mac)
-            return true;
-        else
-            return false;
+        $CHECKOUT_XML = base64_encode( $xml->asXML() );
+        $CHECKOUT_MAC = strtoupper(hash_hmac('sha256', $CHECKOUT_XML, $this->secret) );
+
+        $params = array(
+            'CHECKOUT_XML' => $CHECKOUT_XML,
+            'CHECKOUT_MAC' => $CHECKOUT_MAC
+         );
+
+        return $this->createQuery( self::serviceURL, $params );
     }
 
     /**
-     * Creates a charge on the previously registered payment method
+     * Generate a query
      *
-     * @param string $token The token assigned to this customer/order, fetched by registering a payment method, 00000000-0000-0000-0000-000000000000 = test account token
-     * @param string $stamp Unique identifier for this transaction, cannot be reused, recommend to use microtime() etc
-     * @param integer $amount Amount of the charge, in cents, 1€ == 100
-     * @param string $reference Reference number to the payment, order number etc, can be duplicate with a previous payment
-     * @param string $message Description of payment/contents
-     * @param string $return_url Return url
-     * @param timestamp $delivery_date Unix timestamp, an estimate of delivery date,
-     * @param string $first_name First name of customer
-     * @param string $last_name Last name of customer
-     * @param string $street_address  Address of customer
-     * @param string $postcode Postcode
-     * @param string $post_office Postoffice
-     * @param string $email Email of customer
-     * @param string$phone Phonenumber of customer
-     * @param integer $content Content type of purchase 2 = adult entertainment, 1 = everything else
-     * @return mixed|string
-     * @throws \Exception
+     * @param $url target URL
+     * @param $params query parameters
+     * @return WP_Error|array The response or WP_Error on failure.
      */
-    public function debit($token, $stamp, $amount, $reference, $message, $return_url, $delivery_date, $first_name, $last_name, $street_address, $postcode, $post_office, $email, $phone, $content = 1)
-    {
-        $url = "https://payment.checkout.fi/token/debit";
+    private function createQuery( $url, $params ) {
+        $params['hmac'] = Util::calculate_hmac( $params, $this->secret );
 
-        if(!is_numeric($amount))
-            throw new \Exception('Amount must be a numeric value');
-        if($amount > 99999999 or $amount < 100)
-            throw new \Exception("Amount: $amount  out of range, 100 - 99999999"); // Amount can be lower then 1€ but only if there is an explicit contract allowing it with Checkout Finland Oy
+        $response = $this->post_data( $url, $params );
 
-
-        $params = [
-            'VERSION'       => '0001',
-            'STAMP'         => mb_substr($stamp, 0, 20),
-            'AMOUNT'        => $amount,
-            'REFERENCE'     => mb_substr($reference, 0, 20),
-            'MESSAGE'       => mb_substr($message, 0, 1000),
-            'MERCHANT'      => $this->merchant_id,
-            'RETURN'        => mb_substr($return_url, 0 , 200),
-            'CURRENCY'      => 'EUR',
-            'CONTENT'       => "$content",
-            'ALGORITHM'     => '3',
-            'DELIVERY_DATE' => date('Ymd', $delivery_date),
-            'FIRSTNAME'     => mb_substr($first_name, 0, 40),
-            'FAMILYNAME'    => mb_substr($last_name, 0, 40),
-            'ADDRESS'       => mb_substr($street_address, 0, 40),
-            'POSTCODE'      => mb_substr($postcode, 0, 14),
-            'POSTOFFICE'    => mb_substr($post_office, 0, 18),
-            'EMAIL'         => mb_substr($email, 0, 200),
-            'PHONE'         => mb_substr($phone, 0, 30),
-            'TOKEN'         => $token,
-        ];
-        
-        $params['MAC'] = strtoupper(hash_hmac('sha256', join('+', $params) , $this->secret));
-        
-        return $this->postData($url, $params);
+        return $response;
     }
-
-
 
     /**
-     * Posts the data, tries to use stream context if allow_url_fopen is on in php.ini or CURL if not. If neither option is available throws exception.
+     * Posts the data.
      *
-     * @param $url
-     * @param $postData
-     * @return mixed|string
-     * @throws \Exception
+     * @param string $url       The request url.
+     * @param array  $post_data The post data.
+     *
+     * @return WP_Error|array The response or WP_Error on failure.
      */
-    private function postData($url, $postData)
-    {
-        if(ini_get('allow_url_fopen'))
-        {
-            $context = stream_context_create(array(
-                'http' => array(
-                    'method' => 'POST',
-                    'header' => 'Content-Type: application/x-www-form-urlencoded; charset=utf-8',
-                    'content' => http_build_query($postData)
-                ),
-                "ssl" => array(
-                    "verify_peer"=>false,
-                    "verify_peer_name"=>false,
-                )
-            ));
-            return file_get_contents($url, false, $context);
-        }
-        elseif(in_array('curl', get_loaded_extensions()) )
-        {
-            $options = array(
-                CURLOPT_POST            => 1,
-                CURLOPT_HEADER          => 'Content-Type: application/x-www-form-urlencoded; charset=utf-8',
-                CURLOPT_URL             => $url,
-                CURLOPT_FRESH_CONNECT   => 1,
-                CURLOPT_RETURNTRANSFER  => 1,
-                CURLOPT_FORBID_REUSE    => 1,
-                CURLOPT_TIMEOUT         => 4,
-                CURLOPT_POSTFIELDS      => http_build_query($postData)
-            );
-            $ch = curl_init();
-            curl_setopt_array($ch, $options);
-            $result = curl_exec($ch);
-            curl_close($ch);
-            return $result;
-        }
-        else
-        {
-            throw new \Exception("No valid method to post data. Set allow_url_fopen setting to On in php.ini file or install curl extension.");
-        }
-    }
+    private function post_data( $url, $post_data ) {
+        $env = defined( 'WP_ENV' ) ? WP_ENV : 'development';
 
+        // Do not verify SSl for now.
+        $ssl_verify = false;
+
+        $response = \wp_remote_post( $url, array(
+                'method'      => 'POST',
+                'timeout'     => 45,
+                'blocking'    => true,
+                'body'        => $post_data,
+                'sslverify'   => $ssl_verify,
+                'headers'     => [
+                    'Content-Type' => 'application/x-www-form-urlencoded',
+                    'charset'      => 'utf-8',
+                ],
+            )
+         );
+
+        return $response;
+    }
 
 }
